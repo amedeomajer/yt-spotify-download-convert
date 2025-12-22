@@ -1,0 +1,15 @@
+# Sensitive credentials
+config/credentials.json
+config/spotify-credentials.json
+
+# All tokens (NEVER commit these!)
+data/tokens/
+
+# Node modules
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

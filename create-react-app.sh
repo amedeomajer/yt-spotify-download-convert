@@ -1,0 +1,1 @@
+pnpm dlx shadcn@latest create --preset "https://ui.shadcn.com/init?base=base&style=vega&baseColor=stone&theme=rose&iconLibrary=tabler&font=outfit&menuAccent=bold&menuColor=default&radius=large&template=vite" --template vite

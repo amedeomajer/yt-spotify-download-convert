@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm tsx:*)",
+      "Bash(npm install:*)",
+      "Bash(npm cache clean:*)",
+      "Bash(node --version)",
+      "Bash(pnpm init:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm add:*)"
+    ]
+  }
+}
