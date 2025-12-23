@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import type { YouTubePlaylist } from '@/types/youtube';
 
 type Step = 'auth' | 'input' | 'converting' | 'results';
 
@@ -16,7 +16,9 @@ interface AuthStatus {
 export function ConversionFlow() {
   const [step, setStep] = useState<Step>('auth');
   const [authStatus, setAuthStatus] = useState<AuthStatus>({ youtube: false, spotify: false });
-  const [playlistUrl, setPlaylistUrl] = useState('');
+  const [playlists, setPlaylists] = useState<YouTubePlaylist[]>([]);
+  const [loadingPlaylists, setLoadingPlaylists] = useState(false);
+  const [selectedPlaylist, setSelectedPlaylist] = useState<YouTubePlaylist | null>(null);
   const [progress, setProgress] = useState(0);
 
   // Check auth status on mount
@@ -38,6 +40,13 @@ export function ConversionFlow() {
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
+  // Fetch playlists when entering input step
+  useEffect(() => {
+    if (step === 'input' && playlists.length === 0) {
+      fetchPlaylists();
+    }
+  }, [step]);
+
   // Check auth status
   const checkAuthStatus = async () => {
     try {
@@ -51,6 +60,26 @@ export function ConversionFlow() {
       }
     } catch (error) {
       console.error('Failed to check auth status:', error);
+    }
+  };
+
+  // Fetch YouTube playlists
+  const fetchPlaylists = async () => {
+    setLoadingPlaylists(true);
+    try {
+      const res = await fetch('/api/youtube/playlists');
+      const data = await res.json();
+
+      if (data.error) {
+        console.error('Failed to fetch playlists:', data.error);
+        return;
+      }
+
+      setPlaylists(data.playlists || []);
+    } catch (error) {
+      console.error('Failed to fetch playlists:', error);
+    } finally {
+      setLoadingPlaylists(false);
     }
   };
 
@@ -133,21 +162,55 @@ export function ConversionFlow() {
           </Card>
         )}
 
-        {/* Step 2: Playlist Input */}
+        {/* Step 2: Playlist Selection */}
         {step === 'input' && (
           <Card className="border-rose-200 dark:border-rose-900">
             <CardHeader>
-              <CardTitle>Step 2: Enter YouTube Playlist</CardTitle>
+              <CardTitle>Step 2: Select YouTube Playlist</CardTitle>
               <CardDescription>
-                Paste the URL of the YouTube playlist you want to convert
+                Choose a playlist to convert to Spotify
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Input
-                placeholder="https://www.youtube.com/playlist?list=..."
-                value={playlistUrl}
-                onChange={(e) => setPlaylistUrl(e.target.value)}
-              />
+              {loadingPlaylists ? (
+                <div className="text-center py-8">
+                  <div className="text-muted-foreground">Loading your playlists...</div>
+                </div>
+              ) : playlists.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-muted-foreground">No playlists found</div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                  {playlists.map((playlist) => (
+                    <button
+                      key={playlist.id}
+                      onClick={() => setSelectedPlaylist(playlist)}
+                      className={`
+                        flex gap-3 p-3 rounded-lg border-2 transition-all text-left
+                        ${selectedPlaylist?.id === playlist.id
+                          ? 'border-rose-500 bg-rose-50 dark:bg-rose-950'
+                          : 'border-stone-200 dark:border-stone-800 hover:border-rose-300'
+                        }
+                      `}
+                    >
+                      {playlist.thumbnail && (
+                        <img
+                          src={playlist.thumbnail}
+                          alt={playlist.title}
+                          className="w-20 h-20 object-cover rounded"
+                        />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold truncate">{playlist.title}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {playlist.itemCount} songs
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <div className="flex gap-2">
                 <Button
@@ -172,7 +235,7 @@ export function ConversionFlow() {
                     }, 200);
                   }}
                   className="flex-1"
-                  disabled={!playlistUrl}
+                  disabled={!selectedPlaylist}
                 >
                   Convert to Spotify
                 </Button>
@@ -231,7 +294,7 @@ export function ConversionFlow() {
               <Button
                 onClick={() => {
                   setStep('input');
-                  setPlaylistUrl('');
+                  setSelectedPlaylist(null);
                   setProgress(0);
                 }}
                 variant="outline"
