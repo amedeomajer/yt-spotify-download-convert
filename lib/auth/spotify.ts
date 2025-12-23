@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 
 const SPOTIFY_SCOPES = [
+  'user-read-email',
   'playlist-modify-public',
   'playlist-modify-private',
   'playlist-read-private',
