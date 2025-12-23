@@ -7,7 +7,11 @@
       "Bash(node --version)",
       "Bash(pnpm init:*)",
       "Bash(pnpm install:*)",
-      "Bash(pnpm add:*)"
+      "Bash(pnpm add:*)",
+      "Bash(cat:*)",
+      "Bash(git -C /Users/amedeomajer/Projects/Personal/ytb log --oneline -15)",
+      "Bash(git -C /Users/amedeomajer/Projects/Personal/ytb diff HEAD~1 HEAD --name-only)",
+      "Bash(pnpm remove:*)"
     ]
   }
 }

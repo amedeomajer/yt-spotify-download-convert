@@ -13,3 +13,11 @@ node_modules/
 .idea/
 *.swp
 *.swo
+
+# Next.js
+.next/
+out/
+.env*.local
+
+# Vercel
+.vercel

@@ -115,7 +115,7 @@ export async function authorizeSpotify(tokenPath: string) {
   // Start local server to capture redirect
   const authCode = await new Promise<string>((resolve, reject) => {
     const server = http.createServer((req, res) => {
-      const url = new URL(req.url!, `http://localhost:${port}`);
+      const url = new URL(req.url!, `http://127.0.0.1:${port}`);
 
       if (url.pathname === callbackPath) {
         const code = url.searchParams.get("code");
