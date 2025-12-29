@@ -33,6 +33,8 @@ export function ConversionFlow() {
   const [progress, setProgress] = useState(0);
   const [conversionResults, setConversionResults] = useState<ConversionResponse | null>(null);
   const [conversionError, setConversionError] = useState<string | null>(null);
+  const [manuallyAddedTracks, setManuallyAddedTracks] = useState<Set<string>>(new Set());
+  const [addingTrack, setAddingTrack] = useState<string | null>(null);
 
   // Check auth status on mount
   useEffect(() => {
@@ -122,6 +124,35 @@ export function ConversionFlow() {
     if (!popup) {
       // Popup blocked, use same-window redirect as fallback
       window.location.href = "/api/auth/spotify";
+    }
+  };
+
+  // Manually add a track to the playlist
+  const addTrackToPlaylist = async (trackUri: string, trackId: string) => {
+    if (!conversionResults?.spotifyPlaylistId) return;
+
+    setAddingTrack(trackId);
+    try {
+      const response = await fetch("/api/playlist/add-track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          playlistId: conversionResults.spotifyPlaylistId,
+          trackUri
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setManuallyAddedTracks(prev => new Set(prev).add(trackId));
+      } else {
+        console.error("Failed to add track:", data.error);
+      }
+    } catch (error) {
+      console.error("Failed to add track:", error);
+    } finally {
+      setAddingTrack(null);
     }
   };
 
@@ -384,16 +415,43 @@ export function ConversionFlow() {
                       <summary className="cursor-pointer font-semibold text-orange-600">
                         Low Confidence Matches - Added to Playlist ({conversionResults.stats.lowConfidence})
                       </summary>
-                      <div className="mt-4 space-y-2 text-sm">
+                      <div className="mt-4 space-y-4 text-sm">
                         {conversionResults.lowConfidence.map((item, i) => (
-                          <div key={i} className="border-l-2 border-orange-400 pl-3">
+                          <div key={i} className="border-l-2 border-orange-400 pl-3 pb-3">
                             <div className="font-medium">{item.youtubeTitle}</div>
                             <div className="text-muted-foreground">
                               → {item.spotifyTrack.name} by {item.spotifyTrack.artists[0].name}
                             </div>
-                            <div className="text-xs text-orange-600">
+                            <div className="text-xs text-orange-600 mb-2">
                               Confidence: {(item.confidence * 100).toFixed(0)}%
                             </div>
+                            {item.alternatives && item.alternatives.length > 0 && (
+                              <details className="mt-2 ml-2">
+                                <summary className="text-xs cursor-pointer text-muted-foreground hover:text-foreground">
+                                  View {item.alternatives.length} alternative matches
+                                </summary>
+                                <div className="mt-2 space-y-1">
+                                  {item.alternatives.slice(0, 5).map((alt) => (
+                                    <button
+                                      key={alt.id}
+                                      onClick={() => addTrackToPlaylist(alt.uri, alt.id)}
+                                      disabled={manuallyAddedTracks.has(alt.id) || addingTrack === alt.id}
+                                      className="flex items-start gap-2 w-full text-left p-2 rounded hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                                    >
+                                      <span className="flex-shrink-0 mt-0.5">
+                                        {manuallyAddedTracks.has(alt.id) ? '✓' : addingTrack === alt.id ? '...' : '+'}
+                                      </span>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-medium truncate">{alt.name}</div>
+                                        <div className="text-muted-foreground truncate">
+                                          {alt.artists.map(a => a.name).join(', ')} • {alt.album.name}
+                                        </div>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </details>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -405,16 +463,43 @@ export function ConversionFlow() {
                       <summary className="cursor-pointer font-semibold text-red-600">
                         Not Found ({conversionResults.stats.notFound})
                       </summary>
-                      <div className="mt-4 space-y-2 text-sm">
+                      <div className="mt-4 space-y-4 text-sm">
                         {conversionResults.notFound.map((item, i) => (
-                          <div key={i} className="border-l-2 border-red-400 pl-3">
+                          <div key={i} className="border-l-2 border-red-400 pl-3 pb-3">
                             <div className="font-medium">{item.youtubeTitle}</div>
                             <div className="text-muted-foreground">
                               Artist: {item.youtubeArtist}
                             </div>
-                            <div className="text-xs text-red-600">
+                            <div className="text-xs text-red-600 mb-2">
                               {item.reason}
                             </div>
+                            {item.alternatives && item.alternatives.length > 0 && (
+                              <details className="mt-2 ml-2">
+                                <summary className="text-xs cursor-pointer text-muted-foreground hover:text-foreground">
+                                  View {item.alternatives.length} possible matches
+                                </summary>
+                                <div className="mt-2 space-y-1">
+                                  {item.alternatives.slice(0, 5).map((alt) => (
+                                    <button
+                                      key={alt.id}
+                                      onClick={() => addTrackToPlaylist(alt.uri, alt.id)}
+                                      disabled={manuallyAddedTracks.has(alt.id) || addingTrack === alt.id}
+                                      className="flex items-start gap-2 w-full text-left p-2 rounded hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                                    >
+                                      <span className="flex-shrink-0 mt-0.5">
+                                        {manuallyAddedTracks.has(alt.id) ? '✓' : addingTrack === alt.id ? '...' : '+'}
+                                      </span>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-medium truncate">{alt.name}</div>
+                                        <div className="text-muted-foreground truncate">
+                                          {alt.artists.map(a => a.name).join(', ')} • {alt.album.name}
+                                        </div>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </details>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -430,6 +515,7 @@ export function ConversionFlow() {
                   setProgress(0);
                   setConversionResults(null);
                   setConversionError(null);
+                  setManuallyAddedTracks(new Set());
                 }}
                 variant="outline"
                 className="w-full"

@@ -20,7 +20,8 @@ export function parseYouTubeTitle(rawTitle: string): ParsedTitle {
     .trim();
 
   // 2. Extract version info (before removing parentheses)
-  const versionMatch = cleaned.match(/\((Remix|Live|Acoustic|Remaster|Remastered)\)/i);
+  // Match any parentheses containing Remix/Live/etc., not just those exact words
+  const versionMatch = cleaned.match(/\(([^)]*(?:Remix|Live|Acoustic|Remaster|Remastered)[^)]*)\)/i);
   const version = versionMatch ? versionMatch[1] : undefined;
 
   // 3. Extract featured artists

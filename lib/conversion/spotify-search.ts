@@ -16,6 +16,7 @@ export interface SearchResult {
   confidence: number;
   matchTier: 1 | 2 | 3;
   reason: string;
+  alternatives: SpotifyTrack[];
 }
 
 export async function searchSpotify(
@@ -23,32 +24,48 @@ export async function searchSpotify(
   youtubeChannelName: string,
   accessToken: string
 ): Promise<SearchResult> {
+  const allAlternatives: SpotifyTrack[] = [];
+
   // Strategy 1: Exact search (if we have artist)
   if (parsed.artist) {
     const exactResult = await exactSearch(parsed, accessToken);
+    allAlternatives.push(...exactResult.alternatives);
     if (exactResult.confidence >= 0.75) {
-      return exactResult;
+      return { ...exactResult, alternatives: deduplicateTracks(allAlternatives) };
     }
   }
 
   // Strategy 2: Combined search with channel name as fallback
   const combinedResult = await combinedSearch(parsed, youtubeChannelName, accessToken);
+  allAlternatives.push(...combinedResult.alternatives);
   if (combinedResult.confidence >= 0.65) {
-    return combinedResult;
+    return { ...combinedResult, alternatives: deduplicateTracks(allAlternatives) };
   }
 
   // Strategy 3: Title-only fallback
   const titleOnlyResult = await titleOnlySearch(parsed, accessToken);
+  allAlternatives.push(...titleOnlyResult.alternatives);
   if (titleOnlyResult.confidence >= 0.60) {
-    return titleOnlyResult;
+    return { ...titleOnlyResult, alternatives: deduplicateTracks(allAlternatives) };
   }
 
   return {
     track: null,
     confidence: 0,
     matchTier: 3,
-    reason: 'No confident match found'
+    reason: 'No confident match found',
+    alternatives: deduplicateTracks(allAlternatives)
   };
+}
+
+// Helper to remove duplicate tracks by ID
+function deduplicateTracks(tracks: SpotifyTrack[]): SpotifyTrack[] {
+  const seen = new Set<string>();
+  return tracks.filter(track => {
+    if (seen.has(track.id)) return false;
+    seen.add(track.id);
+    return true;
+  }).slice(0, 5); // Return top 5 unique tracks
 }
 
 async function exactSearch(parsed: ParsedTitle, token: string): Promise<SearchResult> {
@@ -61,14 +78,14 @@ async function exactSearch(parsed: ParsedTitle, token: string): Promise<SearchRe
     );
 
     if (!response.ok) {
-      return { track: null, confidence: 0, matchTier: 1, reason: 'API error' };
+      return { track: null, confidence: 0, matchTier: 1, reason: 'API error', alternatives: [] };
     }
 
     const data = await response.json();
     const tracks = data.tracks?.items || [];
 
     if (tracks.length === 0) {
-      return { track: null, confidence: 0, matchTier: 1, reason: 'No results' };
+      return { track: null, confidence: 0, matchTier: 1, reason: 'No results', alternatives: [] };
     }
 
     // Calculate confidence for top result
@@ -89,10 +106,11 @@ async function exactSearch(parsed: ParsedTitle, token: string): Promise<SearchRe
       track: confidence >= 0.75 ? topTrack : null,
       confidence,
       matchTier: 1,
-      reason: `Artist: ${(artistMatch * 100).toFixed(0)}%, Title: ${(titleMatch * 100).toFixed(0)}%`
+      reason: `Artist: ${(artistMatch * 100).toFixed(0)}%, Title: ${(titleMatch * 100).toFixed(0)}%`,
+      alternatives: tracks
     };
   } catch (error) {
-    return { track: null, confidence: 0, matchTier: 1, reason: 'Search failed' };
+    return { track: null, confidence: 0, matchTier: 1, reason: 'Search failed', alternatives: [] };
   }
 }
 
@@ -112,14 +130,14 @@ async function combinedSearch(
     );
 
     if (!response.ok) {
-      return { track: null, confidence: 0, matchTier: 2, reason: 'API error' };
+      return { track: null, confidence: 0, matchTier: 2, reason: 'API error', alternatives: [] };
     }
 
     const data = await response.json();
     const tracks = data.tracks?.items || [];
 
     if (tracks.length === 0) {
-      return { track: null, confidence: 0, matchTier: 2, reason: 'No results' };
+      return { track: null, confidence: 0, matchTier: 2, reason: 'No results', alternatives: [] };
     }
 
     // Find best match from results (AND logic - both artist and title must match)
@@ -149,10 +167,11 @@ async function combinedSearch(
       track: bestConfidence >= 0.65 ? bestMatch : null,
       confidence: bestConfidence,
       matchTier: 2,
-      reason: `Combined search: ${(bestConfidence * 100).toFixed(0)}% match`
+      reason: `Combined search: ${(bestConfidence * 100).toFixed(0)}% match`,
+      alternatives: tracks
     };
   } catch (error) {
-    return { track: null, confidence: 0, matchTier: 2, reason: 'Search failed' };
+    return { track: null, confidence: 0, matchTier: 2, reason: 'Search failed', alternatives: [] };
   }
 }
 
@@ -166,14 +185,14 @@ async function titleOnlySearch(parsed: ParsedTitle, token: string): Promise<Sear
     );
 
     if (!response.ok) {
-      return { track: null, confidence: 0, matchTier: 3, reason: 'API error' };
+      return { track: null, confidence: 0, matchTier: 3, reason: 'API error', alternatives: [] };
     }
 
     const data = await response.json();
     const tracks = data.tracks?.items || [];
 
     if (tracks.length === 0) {
-      return { track: null, confidence: 0, matchTier: 3, reason: 'No results' };
+      return { track: null, confidence: 0, matchTier: 3, reason: 'No results', alternatives: [] };
     }
 
     // Find best title match
@@ -196,10 +215,11 @@ async function titleOnlySearch(parsed: ParsedTitle, token: string): Promise<Sear
       track: bestConfidence >= 0.60 ? bestMatch : null,
       confidence: bestConfidence,
       matchTier: 3,
-      reason: `Title-only: ${(bestConfidence * 100).toFixed(0)}% match`
+      reason: `Title-only: ${(bestConfidence * 100).toFixed(0)}% match`,
+      alternatives: tracks
     };
   } catch (error) {
-    return { track: null, confidence: 0, matchTier: 3, reason: 'Search failed' };
+    return { track: null, confidence: 0, matchTier: 3, reason: 'Search failed', alternatives: [] };
   }
 }
 

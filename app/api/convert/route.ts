@@ -3,6 +3,7 @@ import { google } from 'googleapis';
 import { getSession } from '@/lib/auth/session';
 import { createYouTubeOAuthClient } from '@/lib/auth/youtube';
 import { parseYouTubeTitle } from '@/lib/conversion/title-parser';
+import { parseWithAI } from '@/lib/conversion/ai-title-parser';
 import { searchSpotify } from '@/lib/conversion/spotify-search';
 import type {
   ConversionRequest,
@@ -56,9 +57,23 @@ export async function POST(request: Request) {
         continue;
       }
 
-      // Parse title
-      const parsed = parseYouTubeTitle(videoTitle);
+      // Parse title with rule-based parser
+      let parsed = parseYouTubeTitle(videoTitle);
       console.log(`  Parsed: artist="${parsed.artist || 'N/A'}", title="${parsed.title}"`);
+
+      // If no artist found, try AI parsing
+      if (!parsed.artist && process.env.OPENAI_API_KEY) {
+        console.log(`  No artist found, trying AI parsing...`);
+        try {
+          const aiParsed = await parseWithAI(videoTitle);
+          if (aiParsed.artist) {
+            console.log(`  AI parsed: artist="${aiParsed.artist}", title="${aiParsed.title}"`);
+            parsed = aiParsed;
+          }
+        } catch (error) {
+          console.error(`  AI parsing failed:`, error);
+        }
+      }
 
       // Search Spotify
       const searchResult = await searchSpotify(
@@ -67,29 +82,55 @@ export async function POST(request: Request) {
         session.spotifyToken.access_token
       );
 
-      console.log(`  Result: confidence=${(searchResult.confidence * 100).toFixed(0)}%, tier=${searchResult.matchTier}`);
+      // If the YouTube video has a version indicator (Remix, Live, etc.),
+      // check if the Spotify result also has that indicator
+      let adjustedConfidence = searchResult.confidence;
+      if (parsed.version && searchResult.track) {
+        const spotifyTrackName = searchResult.track.name.toLowerCase();
 
-      // Categorize result
-      if (searchResult.track && searchResult.confidence >= 0.75) {
+        // Check if the Spotify track name contains any version keyword
+        const hasVersionKeyword =
+          spotifyTrackName.includes('remix') ||
+          spotifyTrackName.includes('live') ||
+          spotifyTrackName.includes('acoustic') ||
+          spotifyTrackName.includes('remaster');
+
+        if (!hasVersionKeyword) {
+          // Version mismatch: likely found the original when searching for a version
+          adjustedConfidence = Math.max(0, searchResult.confidence - 0.30);
+          console.log(`  Version mismatch: YouTube has "${parsed.version}" but Spotify doesn't. Confidence: ${(searchResult.confidence * 100).toFixed(0)}% → ${(adjustedConfidence * 100).toFixed(0)}%`);
+        } else {
+          console.log(`  Version match: Both have version indicator. Keeping confidence: ${(searchResult.confidence * 100).toFixed(0)}%`);
+        }
+      } else if (parsed.version && !searchResult.track) {
+        console.log(`  Version detected (${parsed.version}) but no match found`);
+      }
+
+      console.log(`  Result: confidence=${(adjustedConfidence * 100).toFixed(0)}%, tier=${searchResult.matchTier}`);
+
+      // Categorize result using adjusted confidence
+      if (searchResult.track && adjustedConfidence >= 0.75) {
         results.push({
           youtubeTitle: videoTitle,
           youtubeArtist: parsed.artist || channelName,
           spotifyTrack: searchResult.track,
-          confidence: searchResult.confidence,
+          confidence: adjustedConfidence,
           matchTier: searchResult.matchTier
         });
-      } else if (searchResult.track && searchResult.confidence >= 0.60) {
+      } else if (searchResult.track && adjustedConfidence >= 0.60) {
         lowConfidence.push({
           youtubeTitle: videoTitle,
           youtubeArtist: parsed.artist || channelName,
           spotifyTrack: searchResult.track,
-          confidence: searchResult.confidence
+          confidence: adjustedConfidence,
+          alternatives: searchResult.alternatives
         });
       } else {
         notFound.push({
           youtubeTitle: videoTitle,
           youtubeArtist: parsed.artist || channelName,
-          reason: searchResult.reason
+          reason: searchResult.reason,
+          alternatives: searchResult.alternatives
         });
       }
 

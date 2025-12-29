@@ -19,12 +19,14 @@ export interface LowConfidenceSong {
   youtubeArtist: string;
   spotifyTrack: SpotifyTrack;
   confidence: number;
+  alternatives: SpotifyTrack[];
 }
 
 export interface NotFoundSong {
   youtubeTitle: string;
   youtubeArtist: string;
   reason: string;
+  alternatives: SpotifyTrack[];
 }
 
 export interface ConversionStats {
