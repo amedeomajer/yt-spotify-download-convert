@@ -52,7 +52,9 @@ export async function POST(request: Request) {
         notFound.push({
           youtubeTitle: videoTitle,
           youtubeArtist: channelName,
-          reason: 'Video unavailable'
+          videoId: item.contentDetails.videoId,
+          reason: 'Video unavailable',
+          alternatives: []
         });
         continue;
       }
@@ -129,6 +131,7 @@ export async function POST(request: Request) {
         notFound.push({
           youtubeTitle: videoTitle,
           youtubeArtist: parsed.artist || channelName,
+          videoId: item.contentDetails.videoId,
           reason: searchResult.reason,
           alternatives: searchResult.alternatives
         });

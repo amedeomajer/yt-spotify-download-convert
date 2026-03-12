@@ -25,6 +25,7 @@ export interface LowConfidenceSong {
 export interface NotFoundSong {
   youtubeTitle: string;
   youtubeArtist: string;
+  videoId: string;
   reason: string;
   alternatives: SpotifyTrack[];
 }

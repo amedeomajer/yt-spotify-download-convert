@@ -14,7 +14,9 @@
       "Bash(pnpm remove:*)",
       "Bash(echo:*)",
       "Bash(ipconfig getifaddr:*)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(yt-dlp:*)",
+      "Bash(ffmpeg:*)"
     ]
   }
 }
